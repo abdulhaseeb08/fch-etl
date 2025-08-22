@@ -5,18 +5,18 @@ from datetime import datetime, date
 
 class ActiveVitalTxOrders(BaseModel):
     """Model for Active Vital and TX Orders data from incoming_*_ActiveVitalandTXOrders.csv"""
-    sapphire_pat_id: str = Field(alias="SAPPHIRE_PAT_ID")
-    facility_id: str = Field(alias="FACILITY_ID")
-    vital_order_type: str = Field(alias="VITAL_ORDER_TYPE")
-    directions: str = Field(alias="Directions")
-    frequency: str = Field(alias="FREQUENCY")
-    time_slots: str = Field(alias="TIME_SLOTS")
-    start_date: date = Field(alias="START_DATE")
-    stop_date: date = Field(alias="STOP_DATE")
-    prescriber: str = Field(alias="PRESCRIBER")
-    npi: str = Field(alias="NPI")
-    vital_order_id: int = Field(alias="VITAL_ORDER_ID")
-    ordered_by: str = Field(alias="ORDERED_BY")
+    sapphire_pat_id: Optional[str] = Field(alias="SAPPHIRE_PAT_ID", default=None)
+    facility_id: Optional[str] = Field(alias="FACILITY_ID", default=None)
+    vital_order_type: Optional[str] = Field(alias="VITAL_ORDER_TYPE", default=None)
+    directions: Optional[str] = Field(alias="Directions", default=None)
+    frequency: Optional[str] = Field(alias="FREQUENCY", default=None)
+    time_slots: Optional[str] = Field(alias="TIME_SLOTS", default=None)
+    start_date: Optional[str] = Field(alias="START_DATE", default=None)
+    stop_date: Optional[str] = Field(alias="STOP_DATE", default=None)
+    prescriber: Optional[str] = Field(alias="PRESCRIBER", default=None)
+    npi: Optional[str] = Field(alias="NPI", default=None)
+    vital_order_id: Optional[str] = Field(alias="VITAL_ORDER_ID", default=None)
+    ordered_by: Optional[str] = Field(alias="ORDERED_BY", default=None)
 
     class Config:
         allow_population_by_field_name = True

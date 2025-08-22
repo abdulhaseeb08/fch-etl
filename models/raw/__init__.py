@@ -19,6 +19,7 @@ from .activeVitalTxOrders import ActiveVitalTxOrders
 from .activeRoster import ActiveRoster
 from .activeProbs import ActiveProbs
 from .activeOrdersWithRxNorm import ActiveOrdersWithRxNorm
+from .files import Files
 
 __all__ = [
     "MedPassResults",
@@ -34,4 +35,5 @@ __all__ = [
     "ActiveRoster",
     "ActiveProbs",
     "ActiveOrdersWithRxNorm",
+    "Files",
 ] 
