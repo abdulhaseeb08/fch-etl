@@ -1,61 +1,54 @@
 import dlt
-from dlt.sources.filesystem import filesystem, read_csv_duckdb
 from models.raw import *
+from models.file_table_mapping import file_table_mapping
 from dltConfig.resources import DLTResource
-from dltConfig.piepline import Pipeline
-
-# ClickHouse destination configuration
-clickhouse_destination = dlt.destinations.clickhouse(
-    credentials={
-        "database": "rawData",
-        "username": "default", 
-        "password": "august",
-        "host": "localhost",
-        "http_port": 8123,
-        "port": 9000,
-        "secure": 0
-    }
-)
-
-# Create resources for each Pydantic model
-models = [
-    #("MedPassResults", MedPassResults, "*MedPassResults*.csv"),
-    #("VitalResults", VitalResults, "*VitalResults*.csv"),
-    #("TasksApptsActivity", TasksApptsActivity, "*TasksApptsActivity*.csv"),
-    #("PhysicalAssessmentWithClass", PhysicalAssessmentWithClass, "*PhysicalAssessment*.csv"),
-    #("RosterReleases", RosterReleases, "*RosterReleases*.csv"),
-    #("TBTestResults", TBTestResults, "*TBTestResults*.csv"),
-    #("FormResponseCaptures", FormResponseCaptures, "*FormResponseCaptures*.csv"),
-    #("FormSubmissions", FormSubmissions, "*FormSubmissions*.csv"),
-    #("LabResults", LabResults, "*LabResults*.csv"),
-    ("ActiveVitalTxOrders", ActiveVitalTxOrders, "*ActiveVitalandTXOrders*.csv"),
-    #("ActiveRoster", ActiveRoster, "*ActiveRoster*.csv"),
-    #("ActiveProbs", ActiveProbs, "*ActiveProbs*.csv"),
-    #("ActiveOrdersWithRxNorm", ActiveOrdersWithRxNorm, "*ActiveORDERSWithRXNorm*.csv"),
-    #("Files", Files, "*Files*.csv"),
-]
-
-bucket_url = "file://home/haseeb/Desktop/gcp_to_clickhouse/demo_pipeline/bucket/incoming"
-
-# Create resources
-resources = []
-for table_name, model_class, file_glob in models:
-    resource = DLTResource(
-        table_name=table_name,
-        columns=model_class,
-        schema_contract="evolve",
-        write_disposition="append",
-        bucket_url=bucket_url,
-        file_glob=file_glob
-    )
-    resources.append(resource.create_filesystem_resource())
-# Run pipeline
-pipeline = Pipeline(
-    source=resources,
-    destination=clickhouse_destination,
-    pipeline_name="healthcare_data_pipeline"
-)
+from dltConfig.pipeline import Pipeline
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 if __name__ == "__main__":
-    load_info = pipeline.run()
-    print(f"Pipeline completed successfully: {load_info}")
+
+    clickhouse_destination = dlt.destinations.clickhouse()
+    models = file_table_mapping
+    bucket_url = os.getenv("BUCKET_URL")
+
+    error_logger = DLTResource(
+        table_name="error_logs",
+        columns=None, 
+        schema_contract="evolve",
+        write_disposition="append",
+        bucket_url=None,  
+        file_glob=None 
+    )
+    error_logging_pipeline = Pipeline(
+        source=[error_logger.create_error_resource(None, None)],
+        destination=clickhouse_destination,
+        pipeline_name="error_logging"
+    )
+    
+    for table_name, model_class, file_glob in models:
+        try:            
+            source_data = DLTResource(
+                table_name=table_name,
+                columns=model_class,
+                schema_contract="evolve",
+                write_disposition="append",
+                bucket_url=bucket_url,
+                file_glob=file_glob
+            )
+            
+            pipeline = Pipeline(
+                source=[source_data.create_filesystem_resource()],
+                destination=clickhouse_destination,
+                pipeline_name=f"fch_analytics_{table_name.lower()}"
+            )
+            
+            load_info = pipeline.run()
+            
+        except Exception as e:
+            pipeline_name = f"fch_analytics_{table_name.lower()}"
+            error_logging_pipeline.set_source(error_logger.create_error_resource(pipeline_name, e))
+            error_logging_pipeline.run()
+            continue
+    

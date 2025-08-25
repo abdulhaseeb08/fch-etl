@@ -14,3 +14,6 @@ class Pipeline:
         )
         load_info = load_info.run(self.source)
         return load_info
+    
+    def set_source(self, source):
+        self.source = source

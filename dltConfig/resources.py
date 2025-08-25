@@ -1,6 +1,7 @@
 import dlt
-from dlt.sources.filesystem import filesystem, read_csv_duckdb
-from models.raw import *
+from dlt.sources.filesystem import filesystem, read_csv
+from datetime import datetime, timezone
+from models.raw import ErrorLogs
 
 class DLTResource:
     def __init__(self, table_name, columns, schema_contract, write_disposition, bucket_url, file_glob):
@@ -12,13 +13,33 @@ class DLTResource:
         self.file_glob = file_glob
     
     def create_filesystem_resource(self):
-        @dlt.resource(table_name=self.table_name, columns=self.columns, schema_contract=self.schema_contract, write_disposition=self.write_disposition, )
+        @dlt.resource(
+            table_name=self.table_name, 
+            columns=self.columns, 
+            schema_contract=self.schema_contract, 
+            write_disposition=self.write_disposition)
         def filesystem_resource():
-            return filesystem(bucket_url=self.bucket_url, file_glob=self.file_glob) | read_csv_duckdb()
+            files = filesystem(bucket_url=self.bucket_url, file_glob=self.file_glob)
+            files.apply_hints(incremental=dlt.sources.incremental("modification_date", initial_value=datetime(2025, 8, 10, tzinfo=timezone.utc)))
+            files_pipe = files | read_csv()
+            return files_pipe.with_name(self.table_name)
         return filesystem_resource
     
-    def create_file_logging_resource(self):
-        @dlt.resource(table_name="files", columns=Files, write_disposition="append")
-        def file_logging_resource():
-            return filesystem(bucket_url=self.bucket_url, file_glob=self.file_glob) | read_csv_duckdb()
-        return file_logging_resource
+    def create_error_resource(self, pipeline_name=None, err=None):
+        @dlt.resource(
+            table_name="error_logs", 
+            columns=ErrorLogs, 
+            schema_contract="evolve",
+            write_disposition="append"
+        )
+        def error_resource():
+            if err:
+                yield {
+                    "pipeline_name": pipeline_name,
+                    "datetime": datetime.now(timezone.utc),
+                    "error_message": str(err)
+                }
+            else:
+                yield {}
+        
+        return error_resource
