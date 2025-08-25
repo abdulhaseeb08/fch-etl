@@ -10,7 +10,6 @@ class Pipeline:
         load_info = dlt.pipeline(
             pipeline_name=self.pipeline_name,
             destination=self.destination
-
         )
         load_info = load_info.run(self.source)
         return load_info

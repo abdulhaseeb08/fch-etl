@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     error_logger = DLTResource(
         table_name="error_logs",
-        columns=None, 
+        columns=None,
         schema_contract="evolve",
         write_disposition="append",
         bucket_url=None,  
@@ -32,7 +32,9 @@ if __name__ == "__main__":
             source_data = DLTResource(
                 table_name=table_name,
                 columns=model_class,
-                schema_contract="evolve",
+                schema_contract={
+                    "data_type": "evolve",
+                },
                 write_disposition="append",
                 bucket_url=bucket_url,
                 file_glob=file_glob

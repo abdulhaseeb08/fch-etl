@@ -11,5 +11,6 @@ class FormSubmissions(BaseModel):
     form_name: Optional[str] = Field(alias="FORM_NAME", default=None)
 
     class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True 
+        validate_by_name = True
+        populate_by_name = True
+        extra = "ignore" 

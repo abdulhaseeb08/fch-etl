@@ -16,5 +16,6 @@ class TasksApptsActivity(BaseModel):
     item_tags: Optional[str] = Field(alias="ITEM_TAGS", default=None)
 
     class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True 
+        validate_by_name = True
+        populate_by_name = True
+        extra = "ignore" 

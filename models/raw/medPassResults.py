@@ -22,5 +22,6 @@ class MedPassResults(BaseModel):
     recorded_by_full_name: Optional[str] = Field(alias="RECORDED_BY_FULL_NAME", default=None)
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
         populate_by_name = True
+        extra = "ignore"

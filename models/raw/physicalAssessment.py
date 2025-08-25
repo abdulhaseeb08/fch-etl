@@ -13,5 +13,6 @@ class PhysicalAssessmentWithClass(BaseModel):
     last_pahp: Optional[str] = Field(alias="LAST_PAHP", default=None)
 
     class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True 
+        validate_by_name = True
+        populate_by_name = True
+        extra = "ignore" 

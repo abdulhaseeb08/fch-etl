@@ -13,5 +13,6 @@ class LabResults(BaseModel):
     spec_rcd_on: Optional[str] = Field(alias="SPEC_RCD_ON", default=None)
 
     class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True 
+        validate_by_name = True
+        populate_by_name = True
+        extra = "ignore" 

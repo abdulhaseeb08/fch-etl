@@ -7,3 +7,6 @@ class ErrorLogs(BaseModel):
     pipeline_name: str
     datetime: datetime
     error_message: str
+    
+    class Config:
+        extra = "ignore"
