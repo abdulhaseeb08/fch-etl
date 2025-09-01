@@ -1,56 +1,70 @@
 import dlt
-from models.raw import *
 from models.file_table_mapping import file_table_mapping
+from dlt.sources.filesystem import read_csv
 from dltConfig.resources import DLTResource
 from dltConfig.pipeline import Pipeline
+from dlt.pipeline.exceptions import PipelineStepFailed
 from dotenv import load_dotenv
 import os
+import shutil
+import glob
 load_dotenv()
 
 if __name__ == "__main__":
 
     clickhouse_destination = dlt.destinations.clickhouse()
     models = file_table_mapping
-    bucket_url = os.getenv("BUCKET_URL")
 
     error_logger = DLTResource(
         table_name="error_logs",
-        columns=None,
         schema_contract="evolve",
         write_disposition="append",
-        bucket_url=None,  
         file_glob=None 
     )
     error_logging_pipeline = Pipeline(
         source=[error_logger.create_error_resource(None, None)],
         destination=clickhouse_destination,
-        pipeline_name="error_logging"
+        pipeline_name="error_logging",
+        pipelines_dir=os.getenv("PIPELINES_DIR")
     )
     
-    for table_name, model_class, file_glob in models:
-        try:            
+    for table_name, file_glob in models:
             source_data = DLTResource(
                 table_name=table_name,
-                columns=model_class,
                 schema_contract={
                     "data_type": "evolve",
+                    "tables": "evolve",
+                    "columns": "evolve"
                 },
                 write_disposition="append",
-                bucket_url=bucket_url,
                 file_glob=file_glob
             )
-            
-            pipeline = Pipeline(
-                source=[source_data.create_filesystem_resource()],
-                destination=clickhouse_destination,
-                pipeline_name=f"fch_analytics_{table_name.lower()}"
-            )
-            
-            load_info = pipeline.run()
-            
-        except Exception as e:
-            pipeline_name = f"fch_analytics_{table_name.lower()}"
-            error_logging_pipeline.set_source(error_logger.create_error_resource(pipeline_name, e))
-            error_logging_pipeline.run()
-            continue
-    
+
+            for file in source_data.list_files():
+                print(file)
+                file_resource = source_data.create_filesystem_resource(file)
+                pipeline_name = f"fch_analytics_{table_name.lower()}_{file.split('.')[0]}"
+                pipeline = Pipeline(
+                    source= file_resource,
+                    destination=clickhouse_destination,
+                    pipeline_name=pipeline_name,
+                    pipelines_dir=os.getenv("PIPELINES_DIR")
+                )
+                try:
+                    extracted_folders = glob.glob(f"{os.getenv('PIPELINES_DIR')}/fch_analytics_*/normalize/extracted")
+                    for folder in extracted_folders:
+                        if os.path.exists(folder):
+                            shutil.rmtree(folder)
+                    print(f"Pipeline: {pipeline_name}, File: {file}")
+                    load_info = pipeline.run()
+                    
+                    source_data.move_file_to_processed(file, "fch-analytics-testing/incoming", "fch-analytics-testing/processed")
+                    
+                except PipelineStepFailed as step_failed:
+                    error_logging_pipeline.set_source(error_logger.create_error_resource(pipeline_name, f'''PipelineStep: {step_failed.step}, File: {file}, Pipeline: {pipeline_name}, Error: {str(step_failed)}'''))
+                    error_logging_pipeline.run()
+                    source_data.move_file_to_processed(file, "fch-analytics-testing/incoming", "fch-analytics-testing/failed")
+                    continue
+    pipelines_dir = os.getenv('PIPELINES_DIR', '')
+    if os.path.exists(pipelines_dir):
+        shutil.rmtree(pipelines_dir)
