@@ -18,6 +18,7 @@ if __name__ == "__main__":
     error_logger = DLTResource(
         table_name="error_logs",
         schema_contract="evolve",
+        columns=None,
         write_disposition="append",
         file_glob=None 
     )
@@ -28,13 +29,14 @@ if __name__ == "__main__":
         pipelines_dir=os.getenv("PIPELINES_DIR")
     )
     
-    for table_name, file_glob in models:
+    for table_name, model, file_glob, column_mapper in models:
             source_data = DLTResource(
                 table_name=table_name,
+                columns=model,
                 schema_contract={
                     "data_type": "evolve",
                     "tables": "evolve",
-                    "columns": "evolve"
+                    "columns": "freeze"
                 },
                 write_disposition="append",
                 file_glob=file_glob
@@ -42,7 +44,7 @@ if __name__ == "__main__":
 
             for file in source_data.list_files():
                 print(file)
-                file_resource = source_data.create_filesystem_resource(file)
+                file_resource = source_data.create_filesystem_resource(file, column_mapper=column_mapper)
                 pipeline_name = f"fch_analytics_{table_name.lower()}_{file.split('.')[0]}"
                 pipeline = Pipeline(
                     source= file_resource,
