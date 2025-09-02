@@ -3,11 +3,14 @@ from models.file_table_mapping import file_table_mapping
 from dlt.sources.filesystem import read_csv
 from dltConfig.resources import DLTResource
 from dltConfig.pipeline import Pipeline
+from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dotenv import load_dotenv
 import os
 import shutil
 import glob
+from datetime import datetime
+import json
 load_dotenv()
 
 if __name__ == "__main__":
@@ -26,7 +29,15 @@ if __name__ == "__main__":
         source=[error_logger.create_error_resource(None, None)],
         destination=clickhouse_destination,
         pipeline_name="error_logging",
-        pipelines_dir=os.getenv("PIPELINES_DIR")
+        pipelines_dir=os.getenv("PIPELINES_DIR"),
+        dataset_name="error_logs"
+    )
+    pipeline = Pipeline(
+        source= None,
+        destination=clickhouse_destination,
+        pipeline_name=None,
+        pipelines_dir=os.getenv("PIPELINES_DIR"),
+        dataset_name="fch_analytics"
     )
     
     for table_name, model, file_glob, column_mapper in models:
@@ -41,17 +52,12 @@ if __name__ == "__main__":
                 write_disposition="append",
                 file_glob=file_glob
             )
-
             for file in source_data.list_files():
                 print(file)
-                file_resource = source_data.create_filesystem_resource(file, column_mapper=column_mapper)
                 pipeline_name = f"fch_analytics_{table_name.lower()}_{file.split('.')[0]}"
-                pipeline = Pipeline(
-                    source= file_resource,
-                    destination=clickhouse_destination,
-                    pipeline_name=pipeline_name,
-                    pipelines_dir=os.getenv("PIPELINES_DIR")
-                )
+                pipeline.set_pipeline_name(pipeline_name)
+                file_resource = source_data.create_filesystem_resource(file, column_mapper=column_mapper)
+                pipeline.set_source(file_resource)
                 try:
                     extracted_folders = glob.glob(f"{os.getenv('PIPELINES_DIR')}/fch_analytics_*/normalize/extracted")
                     for folder in extracted_folders:
@@ -63,6 +69,15 @@ if __name__ == "__main__":
                     source_data.move_file_to_processed(file, "fch-analytics-testing/incoming", "fch-analytics-testing/processed")
                     
                 except PipelineStepFailed as step_failed:
+                    error_message = (
+                        f"🚨 *DATA LOAD FAILED* 🚨\n"
+                        f"{'='*40}\n"
+                        f"📁 *File*: `{file}`\n"
+                        f"🔧 *Failed Step*: `{step_failed.step}`\n"
+                        f"💥 *Error Details*:\n"
+                        f"```\n{str(step_failed.exception)}\n```"
+                    )
+                    send_slack_message(pipeline.pipeline.runtime_config.slack_incoming_hook, error_message)
                     error_logging_pipeline.set_source(error_logger.create_error_resource(pipeline_name, f'''PipelineStep: {step_failed.step}, File: {file}, Pipeline: {pipeline_name}, Error: {str(step_failed)}'''))
                     error_logging_pipeline.run()
                     source_data.move_file_to_processed(file, "fch-analytics-testing/incoming", "fch-analytics-testing/failed")
