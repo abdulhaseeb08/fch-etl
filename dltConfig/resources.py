@@ -4,6 +4,7 @@ from dlt.sources.filesystem.helpers import fsspec_from_resource
 from datetime import datetime, timezone
 import os
 from utils.header_to_column_mapper import rename_columns
+from pandas import DataFrame #type: ignore
 
 class DLTResource:
     def __init__(self, table_name,schema_contract, columns, write_disposition,file_glob):
@@ -66,3 +67,14 @@ class DLTResource:
                 yield {}
         
         return error_resource
+
+    def create_dataframe_resource(self, dataframe: DataFrame):
+        @dlt.resource(
+            table_name=self.table_name,
+            columns=self.columns,
+            schema_contract=self.schema_contract,
+            write_disposition=self.write_disposition
+        )
+        def dataframe_resource():
+            yield dataframe.to_dict(orient="records")
+        return dataframe_resource

@@ -13,7 +13,5 @@ secrets.toml
 .dlt/
 filesystem_pipeline.py
 bucket/
-test.py
-*test*.py
 pipeline_state/
 viral-solution-91a4977a6231.json
