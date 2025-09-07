@@ -3,6 +3,8 @@ import dlt
 from models.file_table_mapping import file_table_mapping
 from models.transformed.facility import Facility
 from models.transformed.drugs import Drugs
+from models.transformed.forms import Forms
+from models.transformed.patients import Patients
 from dlt.sources.filesystem import filesystem, read_csv
 from dlt.sources.filesystem.helpers import fsspec_from_resource
 from dltConfig.resources import DLTResource
@@ -194,4 +196,85 @@ def drugs_resource():
 pipeline = dlt.pipeline(pipeline_name="drugs", 
                         destination=clickhouse_destination_processed)
 pipeline.run(drugs_resource)
+# %%
+# Form table
+form_response_captures_relation = dataset["form_response_captures"]
+form_submissions_relation = dataset["form_submissions"]
+form_df = form_response_captures_relation.df()
+form_df = form_df[["form_name"]] # type: ignore
+form_df = form_df.drop_duplicates()
+form_df = form_df[~form_df["form_name"].str.match(r"^-+$", na=False)]
+#%%
+form_df
+# %%
+import uuid
+form_df["form_uuid"] = form_df["form_name"].apply(lambda x: str(uuid.uuid5(uuid.NAMESPACE_DNS, x)))
+# %%
+@dlt.resource(
+    table_name="forms",
+    merge_key=["form_name"],
+    columns=Forms,
+    schema_contract={
+        "data_type": "freeze",
+        "tables": "evolve",
+        "columns": "freeze"
+    },
+    write_disposition="merge")
+def forms_resource():
+    records = form_df.to_dict(orient="records")
+    current_time = datetime.now(timezone.utc)
+    for record in records:
+        record["inserted_at"] = current_time
+    yield records
+# %%
+pipeline = dlt.pipeline(pipeline_name="forms", 
+                        destination=clickhouse_destination_processed)
+pipeline.run(forms_resource)
+# %%
+# patients table
+dataset.schema
+# %%
+releases_relation = dataset["roster_releases"]
+active_roster_relation = dataset["active_roster"]
+releases_df = releases_relation.df()
+active_roster_df = active_roster_relation.df()
+active_roster_df = active_roster_df[["sapphire_pat_id", "patient_name", "dob", "gender"]] # type: ignore
+releases_df = releases_df[["sapphire_pat_id", "patient_name", "dob", "gender"]] # type: ignore
+active_roster_df = active_roster_df[~active_roster_df["sapphire_pat_id"].str.match(r"^-+$", na=False)]
+releases_df = releases_df[~releases_df["sapphire_pat_id"].str.match(r"^-+$", na=False)]
+active_roster_df = active_roster_df.drop_duplicates(subset=["sapphire_pat_id"])
+releases_df = releases_df.drop_duplicates(subset=["sapphire_pat_id"])
+active_roster_df = active_roster_df.dropna(subset=["sapphire_pat_id"])
+releases_df = releases_df.dropna(subset=["sapphire_pat_id"])
+patients_df = pd.concat([active_roster_df, releases_df], ignore_index=True)
+patients_df = patients_df.drop_duplicates(subset=["sapphire_pat_id"], keep="first")
+patients_df.rename(columns={"sapphire_pat_id": "mrn"}, inplace=True)
+patients_df[["last_name", "first_name"]] = patients_df["patient_name"].str.split(",", n=1, expand=True)
+patients_df["first_name"] = patients_df["first_name"].str.strip()
+patients_df["last_name"] = patients_df["last_name"].str.strip()
+patients_df.drop(columns=["patient_name"], inplace=True)
+# %%
+patients_df
+
+# %%
+@dlt.resource(
+    table_name="patients",
+    merge_key=["mrn"],
+    columns=Patients,
+    schema_contract={
+        "data_type": "freeze",
+        "tables": "evolve",
+        "columns": "freeze"
+    },
+    write_disposition="merge")
+def patients_resource():
+    records = patients_df.to_dict(orient="records")
+    current_time = datetime.now(timezone.utc)
+    for record in records:
+        record["inserted_at"] = current_time
+    yield records
+# %%
+pipeline = dlt.pipeline(pipeline_name="patients", 
+                        destination=clickhouse_destination_processed)
+pipeline.run(patients_resource)
 # %%
