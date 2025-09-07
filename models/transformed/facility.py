@@ -3,5 +3,5 @@ from datetime import datetime
 
 class Facility(BaseModel):
     facility_id: str
-    facility: str
+    facility_name: str
     inserted_at: datetime

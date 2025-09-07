@@ -11,12 +11,22 @@ import shutil
 import glob
 from datetime import datetime
 import json
+import logging
 load_dotenv()
 
 if __name__ == "__main__":
 
+    logger = logging.getLogger('dlt')
+    logger.setLevel(logging.INFO)
+    handler = logging.FileHandler('dlt.log')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
     clickhouse_destination = dlt.destinations.clickhouse()
+    logger.info("Clickhouse destination created")
     models = file_table_mapping
+    logger.error("Some error")
 
     error_logger = DLTResource(
         table_name="error_logs",
